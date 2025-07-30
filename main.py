@@ -9,8 +9,8 @@ error handling and logging setup.
 
 Usage:
     python main.py
-    python main.py --config custom_config.yaml
     python main.py --rtsp-url "rtsp://your-stream-url"
+    python main.py --debug
 """
 
 import argparse
@@ -67,9 +67,7 @@ def parse_arguments():
 Examples:
   python main.py
   python main.py --rtsp-url "rtsp://admin:pass@192.168.1.100:554/stream"
-  python main.py --log-level DEBUG
-  python main.py --detection-model "models/custom-yolov8n.pt"
-  python main.py --segmentation-model "models/custom-yolov11n-seg.pt"
+  python main.py --debug
         """
     )
     
@@ -80,52 +78,9 @@ Examples:
     )
     
     parser.add_argument(
-        '--output-dir',
-        type=str,
-        help='Output directory for results (default: data/deployment_output)'
-    )
-    
-    parser.add_argument(
-        '--detection-model',
-        type=str,
-        help='Path to fine-tuned YOLOv8n detection model'
-    )
-    
-    parser.add_argument(
-        '--segmentation-model',
-        type=str,
-        help='Path to fine-tuned YOLOv11n-segmentation model'
-    )
-    
-    parser.add_argument(
-        '--log-level',
-        choices=['DEBUG', 'INFO', 'WARNING', 'ERROR'],
-        default='INFO',
-        help='Logging level (default: INFO)'
-    )
-    
-    parser.add_argument(
-        '--motion-threshold',
-        type=float,
-        help='Motion detection threshold (default: 1000.0)'
-    )
-    
-    parser.add_argument(
-        '--blur-threshold',
-        type=float,
-        help='Blur detection threshold (default: 100.0)'
-    )
-    
-    parser.add_argument(
-        '--detection-confidence',
-        type=float,
-        help='Detection confidence threshold (default: 0.4)'
-    )
-    
-    parser.add_argument(
-        '--segmentation-confidence',
-        type=float,
-        help='Segmentation confidence threshold (default: 0.6)'
+        '--debug',
+        action='store_true',
+        help='Enable debug logging'
     )
     
     return parser.parse_args()
@@ -138,26 +93,8 @@ def create_config_from_args(args) -> DeploymentConfig:
     if args.rtsp_url:
         config.rtsp_url = args.rtsp_url
     
-    if args.output_dir:
-        config.output_dir = args.output_dir
-    
-    if args.detection_model:
-        config.proxy_model_path = args.detection_model
-    
-    if args.segmentation_model:
-        config.segmentation_model_path = args.segmentation_model
-    
-    if args.motion_threshold:
-        config.motion_threshold = args.motion_threshold
-    
-    if args.blur_threshold:
-        config.blur_threshold = args.blur_threshold
-    
-    if args.detection_confidence:
-        config.proxy_conf_threshold = args.detection_confidence
-    
-    if args.segmentation_confidence:
-        config.seg_conf_threshold = args.segmentation_confidence
+    if args.debug:
+        config.logging_level = "DEBUG"
     
     return config
 
@@ -172,9 +109,7 @@ def main():
         config = create_config_from_args(args)
         print(f"Configuration loaded successfully")
         print(f"RTSP URL: {config.rtsp_url}")
-        print(f"Output Directory: {config.output_dir}")
-        print(f"Detection Model: {config.proxy_model_path}")
-        print(f"Segmentation Model: {config.segmentation_model_path}")
+        print(f"Log Level: {config.logging_level}")
     except Exception as e:
         print(f"Failed to create configuration: {e}")
         print(f"Traceback: {traceback.format_exc()}")
