@@ -64,7 +64,7 @@ class PreFilter:
 
 
 class CoilDetector:
-    """Handles coil detection using YOLO models."""
+    """Handles steel coil detection using fine-tuned YOLO models."""
     
     def __init__(self, config: DeploymentConfig):
         """
@@ -74,18 +74,23 @@ class CoilDetector:
             config: Deployment configuration
         """
         self.config = config
-        self.proxy_model = YOLO(self.config.proxy_model_path)
-        self.logger = logging.getLogger(__name__)
+        try:
+            self.proxy_model = YOLO(self.config.proxy_model_path)
+            self.logger = logging.getLogger(__name__)
+            self.logger.info(f"Loaded fine-tuned detection model: {self.config.proxy_model_path}")
+        except Exception as e:
+            self.logger.error(f"Failed to load detection model: {e}")
+            raise
     
     def confirm_coil_presence(self, frame: np.ndarray) -> bool:
         """
-        Confirm if a coil is present in the frame.
+        Confirm if a steel coil is present in the frame.
         
         Args:
             frame: Input frame
             
         Returns:
-            True if coil is detected, False otherwise
+            True if steel coil is detected, False otherwise
         """
         results = self.proxy_model(frame, conf=self.config.proxy_conf_threshold, verbose=False)
         x_min, y_min, x_max, y_max = self.config.roi
@@ -93,11 +98,15 @@ class CoilDetector:
         if results and results[0].boxes:
             for box in results[0].boxes:
                 class_name = self.proxy_model.names[int(box.cls)]
+                confidence = float(box.conf)
+                
                 if class_name in self.config.proxy_target_classes:
                     bx, by, bw, bh = box.xywh[0]
                     if (x_min < bx < x_max) and (y_min < by < y_max):
-                        self.logger.debug(f"Coil detected: {class_name} at ({bx:.1f}, {by:.1f})")
+                        self.logger.debug(f"Steel coil detected: {class_name} (conf: {confidence:.3f}) at ({bx:.1f}, {by:.1f})")
                         return True
+                    else:
+                        self.logger.debug(f"Steel coil detected outside ROI: {class_name} at ({bx:.1f}, {by:.1f})")
         
         return False
     
@@ -118,7 +127,7 @@ class CoilDetector:
 
 
 class EventStateManager:
-    """Manages the state of coil detection events."""
+    """Manages the state of steel coil detection events."""
     
     def __init__(self, config: DeploymentConfig):
         """
@@ -134,10 +143,10 @@ class EventStateManager:
     
     def update_state(self, has_coil: bool) -> bool:
         """
-        Update the coil event state based on detection results.
+        Update the steel coil event state based on detection results.
         
         Args:
-            has_coil: Whether coil was detected in current frame
+            has_coil: Whether steel coil was detected in current frame
             
         Returns:
             True if state changed, False otherwise
@@ -152,24 +161,24 @@ class EventStateManager:
         # Check for event start
         if not self.in_coil_event and sum(self.detection_buffer) >= self.config.presence_threshold:
             self.in_coil_event = True
-            self.logger.warning(">>> COIL EVENT STARTED <<<")
+            self.logger.warning(">>> STEEL COIL EVENT STARTED <<<")
             state_changed = True
         
         # Check for event end
         elif self.in_coil_event and self.detection_buffer.count(False) >= self.config.absence_threshold:
             self.in_coil_event = False
-            self.logger.warning("<<< COIL EVENT ENDED <<<")
+            self.logger.warning("<<< STEEL COIL EVENT ENDED <<<")
             self.detection_buffer.clear()
             state_changed = True
         
         return state_changed
     
     def is_in_event(self) -> bool:
-        """Check if currently in a coil event."""
+        """Check if currently in a steel coil event."""
         return self.in_coil_event
     
     def reset(self):
         """Reset the event state."""
         self.in_coil_event = False
         self.detection_buffer.clear()
-        self.logger.info("Event state reset") 
+        self.logger.info("Steel coil event state reset") 

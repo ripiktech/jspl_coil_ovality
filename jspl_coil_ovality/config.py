@@ -22,23 +22,23 @@ class DeploymentConfig:
     max_brightness: int = 210
 
     # Stage 2: Coil Presence Confirmation
-    proxy_model_path: str = "yolov8n.pt"
-    proxy_conf_threshold: float = 0.30
-    proxy_target_classes: List[str] = field(default_factory=lambda: ["toilet", "bowl", "vase"])
+    proxy_model_path: str = "models/yolov8n-steel-coil.pt"  # Fine-tuned YOLOv8n for steel coils
+    proxy_conf_threshold: float = 0.4  # Higher confidence for fine-tuned model
+    proxy_target_classes: List[str] = field(default_factory=lambda: ["steel_coil"])  # Specific steel coil class
     roi: Tuple[int, int, int, int] = (750, 0, 2056, 1440)  # (x_min, y_min, x_max, y_max)
     detection_buffer_size: int = 10
     presence_threshold: int = 3
     absence_threshold: int = 5
 
     # Stage 3: Best Frame Selection
-    segmentation_model_path: str = "models/yolov11n-seg.pt"  # Your fine-tuned model
-    seg_conf_threshold: float = 0.5
+    segmentation_model_path: str = "models/yolov11n-seg-steel-coil.pt"  # Fine-tuned segmentation model
+    seg_conf_threshold: float = 0.6  # Higher confidence for fine-tuned segmentation model
     ideal_coil_size: Tuple[int, int] = (1000, 1000)
     score_weights: Dict[str, float] = field(default_factory=lambda: {
-        "segmentation": 0.4,
-        "centering": 0.3,
-        "size": 0.2,
-        "quality": 0.1
+        "segmentation": 0.5,    # Higher weight for fine-tuned segmentation model
+        "centering": 0.25,      # Reduced weight
+        "size": 0.15,           # Reduced weight
+        "quality": 0.1           # Keep low
     })
 
     def __post_init__(self):
