@@ -18,6 +18,7 @@ import logging
 import sys
 import signal
 import os
+import traceback
 from pathlib import Path
 
 # Add the project root to Python path
@@ -25,23 +26,13 @@ project_root = Path(__file__).parent
 sys.path.insert(0, str(project_root))
 
 from jspl_coil_ovality import DeploymentPipeline, DeploymentConfig
-
-
-def setup_logging(level: str = "INFO") -> None:
-    """Setup logging configuration."""
-    logging.basicConfig(
-        level=getattr(logging, level.upper()),
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-        handlers=[
-            logging.StreamHandler(sys.stdout),
-            logging.FileHandler('steel_coil_deployment.log')
-        ]
-    )
+from ripikutils.logsman import setup_logger, LoggerWriter
 
 
 def signal_handler(signum, frame):
     """Handle interrupt signals gracefully."""
-    logging.info(f"Received signal {signum}. Shutting down gracefully...")
+    logger = logging.getLogger(__name__)
+    logger.info(f"Received signal {signum}. Shutting down gracefully...")
     if hasattr(signal_handler, 'pipeline'):
         signal_handler.pipeline.stop()
     sys.exit(0)
@@ -176,25 +167,38 @@ def main():
     # Parse arguments
     args = parse_arguments()
     
-    # Setup logging
-    setup_logging(args.log_level)
-    logger = logging.getLogger(__name__)
-    
-    logger.info("=" * 60)
-    logger.info("JSPL Steel Coil Ovality Detection System")
-    logger.info("=" * 60)
-    
     # Create configuration
     try:
         config = create_config_from_args(args)
-        logger.info(f"Configuration loaded successfully")
-        logger.info(f"RTSP URL: {config.rtsp_url}")
-        logger.info(f"Output Directory: {config.output_dir}")
-        logger.info(f"Detection Model: {config.proxy_model_path}")
-        logger.info(f"Segmentation Model: {config.segmentation_model_path}")
+        print(f"Configuration loaded successfully")
+        print(f"RTSP URL: {config.rtsp_url}")
+        print(f"Output Directory: {config.output_dir}")
+        print(f"Detection Model: {config.proxy_model_path}")
+        print(f"Segmentation Model: {config.segmentation_model_path}")
     except Exception as e:
-        logger.error(f"Failed to create configuration: {e}")
+        print(f"Failed to create configuration: {e}")
+        print(f"Traceback: {traceback.format_exc()}")
         sys.exit(1)
+    
+    # Setup ripikutils logger
+    logger = setup_logger(
+        name=__name__,
+        log_filename=config.log_filename,
+        prefix=config.log_prefix,
+        postfix=config.log_postfix,
+        log_dir=config.log_dir,
+        max_log_size=config.max_log_size,
+        backup_count=config.backup_count,
+        logging_level=getattr(logging, config.logging_level.upper())
+    )
+    
+    # Configure stdout and stderr to be logged
+    sys.stdout = LoggerWriter(logger, logging.INFO)
+    sys.stderr = LoggerWriter(logger, logging.ERROR)
+    
+    print("=" * 60)
+    print("JSPL Steel Coil Ovality Detection System")
+    print("=" * 60)
     
     # Validate model paths
     if not validate_model_paths(config):
@@ -203,9 +207,10 @@ def main():
     # Create pipeline
     try:
         pipeline = DeploymentPipeline(config)
-        logger.info("Steel coil pipeline initialized successfully")
+        print("Steel coil pipeline initialized successfully")
     except Exception as e:
-        logger.error(f"Failed to initialize pipeline: {e}")
+        print(f"Failed to initialize pipeline: {e}")
+        print(f"Traceback: {traceback.format_exc()}")
         sys.exit(1)
     
     # Setup signal handlers for graceful shutdown
@@ -215,16 +220,17 @@ def main():
     
     # Run the pipeline
     try:
-        logger.info("Starting steel coil deployment pipeline...")
+        print("Starting steel coil deployment pipeline...")
         pipeline.run()
     except KeyboardInterrupt:
-        logger.info("Pipeline interrupted by user")
+        print("Pipeline interrupted by user")
     except Exception as e:
-        logger.error(f"Pipeline failed with error: {e}")
+        print(f"Pipeline failed with error: {e}")
+        print(f"Traceback: {traceback.format_exc()}")
         sys.exit(1)
     finally:
         pipeline.stop()
-        logger.info("Steel coil pipeline stopped")
+        print("Steel coil pipeline stopped")
 
 
 if __name__ == "__main__":

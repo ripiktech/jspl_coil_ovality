@@ -9,10 +9,13 @@ import time
 import logging
 import json
 import os
+import sys
+import traceback
 from datetime import datetime
 from typing import Optional
 
 from ultralytics import YOLO
+from ripikutils.logsman import setup_logger, LoggerWriter
 
 from .config import DeploymentConfig, CandidateFrame
 from .detection import PreFilter, CoilDetector, EventStateManager
@@ -33,6 +36,22 @@ class DeploymentPipeline:
         self.config = config
         self.running = False
         
+        # Setup ripikutils logger
+        self.logger = setup_logger(
+            name=__name__,
+            log_filename=config.log_filename,
+            prefix=config.log_prefix,
+            postfix=config.log_postfix,
+            log_dir=config.log_dir,
+            max_log_size=config.max_log_size,
+            backup_count=config.backup_count,
+            logging_level=getattr(logging, config.logging_level.upper())
+        )
+        
+        # Configure stdout and stderr to be logged
+        sys.stdout = LoggerWriter(self.logger, logging.INFO)
+        sys.stderr = LoggerWriter(self.logger, logging.ERROR)
+        
         # Initialize components
         self.pre_filter = PreFilter(config)
         self.coil_detector = CoilDetector(config)
@@ -41,10 +60,10 @@ class DeploymentPipeline:
         # Initialize segmentation model with error handling
         try:
             self.segmentation_model = YOLO(self.config.segmentation_model_path)
-            self.logger = logging.getLogger(__name__)
             self.logger.info(f"Loaded fine-tuned segmentation model: {self.config.segmentation_model_path}")
         except Exception as e:
             self.logger.error(f"Failed to load segmentation model: {e}")
+            self.logger.error(f"Traceback: {traceback.format_exc()}")
             raise
         
         self.score_calculator = CombinedScoreCalculator(config, self.segmentation_model)
@@ -65,23 +84,29 @@ class DeploymentPipeline:
         Returns:
             True if frame was processed, False if rejected
         """
-        # Stage 1: Pre-filtering
-        if not self.pre_filter.should_process_frame(frame):
+        try:
+            # Stage 1: Pre-filtering
+            if not self.pre_filter.should_process_frame(frame):
+                return False
+            
+            # Stage 2: Steel coil presence confirmation
+            is_coil_present = self.coil_detector.confirm_coil_presence(frame)
+            state_changed = self.event_manager.update_state(is_coil_present)
+            
+            # Stage 3: Best frame selection (during steel coil event)
+            if self.event_manager.is_in_event():
+                self._process_candidate_frame(frame)
+            
+            # Stage 4: Final processing (when event ends)
+            if state_changed and not self.event_manager.is_in_event():
+                self._process_best_frame()
+            
+            return True
+            
+        except Exception as e:
+            self.logger.error(f"Error processing frame: {e}")
+            self.logger.error(f"Traceback: {traceback.format_exc()}")
             return False
-        
-        # Stage 2: Steel coil presence confirmation
-        is_coil_present = self.coil_detector.confirm_coil_presence(frame)
-        state_changed = self.event_manager.update_state(is_coil_present)
-        
-        # Stage 3: Best frame selection (during steel coil event)
-        if self.event_manager.is_in_event():
-            self._process_candidate_frame(frame)
-        
-        # Stage 4: Final processing (when event ends)
-        if state_changed and not self.event_manager.is_in_event():
-            self._process_best_frame()
-        
-        return True
     
     def _process_candidate_frame(self, frame: np.ndarray):
         """Process a candidate frame during a steel coil event."""
@@ -93,6 +118,7 @@ class DeploymentPipeline:
                 self.logger.info(f"New best steel coil frame found with score: {candidate.combined_score:.2f}")
         except Exception as e:
             self.logger.error(f"Error processing candidate frame: {e}")
+            self.logger.error(f"Traceback: {traceback.format_exc()}")
     
     def _process_best_frame(self):
         """Process the best frame when steel coil event ends."""
@@ -104,6 +130,7 @@ class DeploymentPipeline:
                 self._save_results(self.best_candidate_frame, ovality)
             except Exception as e:
                 self.logger.error(f"Error calculating ovality: {e}")
+                self.logger.error(f"Traceback: {traceback.format_exc()}")
         else:
             self.logger.error("Steel coil event ended, but no valid best frame was selected.")
         
@@ -148,6 +175,7 @@ class DeploymentPipeline:
             
         except Exception as e:
             self.logger.error(f"Error saving results: {e}")
+            self.logger.error(f"Traceback: {traceback.format_exc()}")
     
     def _interpret_ovality(self, ovality: Optional[float]) -> str:
         """Interpret the ovality value for human readability."""
@@ -174,22 +202,24 @@ class DeploymentPipeline:
 
         frame_count = 0
         while self.running:
-            ret, frame = cap.read()
-            if not ret:
-                self.logger.warning("Failed to read frame from stream. Reconnecting...")
-                cap.release()
-                time.sleep(2)
-                cap = cv2.VideoCapture(self.config.rtsp_url)
-                continue
-
-            frame_count += 1
-            if frame_count % 2 != 0:  # Process every 2nd frame
-                continue
-
             try:
+                ret, frame = cap.read()
+                if not ret:
+                    self.logger.warning("Failed to read frame from stream. Reconnecting...")
+                    cap.release()
+                    time.sleep(2)
+                    cap = cv2.VideoCapture(self.config.rtsp_url)
+                    continue
+
+                frame_count += 1
+                if frame_count % 2 != 0:  # Process every 2nd frame
+                    continue
+
                 self.process_frame(frame)
+                
             except Exception as e:
                 self.logger.error(f"Error processing frame {frame_count}: {e}")
+                self.logger.error(f"Traceback: {traceback.format_exc()}")
                 continue
         
         cap.release()

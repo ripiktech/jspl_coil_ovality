@@ -15,6 +15,15 @@ class DeploymentConfig:
     rtsp_url: str = "rtsp://admin:Ripik.ai@43.204.215.195:8554/angul_jspl"
     output_dir: str = "data/deployment_output"
 
+    # Logging Configuration
+    log_dir: str = "logs"
+    log_filename: Optional[str] = None  # Will use default format if None
+    log_prefix: str = "steel_coil"
+    log_postfix: str = "deployment"
+    max_log_size: int = 100  # MB
+    backup_count: int = 5
+    logging_level: str = "INFO"
+
     # Stage 1: Pre-filtering Configuration
     motion_threshold: float = 1000.0
     blur_threshold: float = 100.0
@@ -44,6 +53,7 @@ class DeploymentConfig:
     def __post_init__(self):
         """Validate configuration after initialization."""
         os.makedirs(self.output_dir, exist_ok=True)
+        os.makedirs(self.log_dir, exist_ok=True)
         
         # Validate score weights sum to 1.0
         if abs(sum(self.score_weights.values()) - 1.0) > 0.001:
