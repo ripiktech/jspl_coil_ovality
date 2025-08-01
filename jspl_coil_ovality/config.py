@@ -26,25 +26,27 @@ class DeploymentConfig:
     blur_threshold: float = 100.0
     min_brightness: int = 40
     max_brightness: int = 210
+    noise_classifier_path: str = "models/noise_classifier.pt"
+    noise_conf_threshold: float = 0.5
+    enable_noise_filtering: bool = True
 
     # Stage 2: Coil Presence Confirmation
-    proxy_model_path: str = "models/yolov8n-steel-coil.pt"
-    proxy_conf_threshold: float = 0.4
-    proxy_target_classes: List[str] = field(default_factory=lambda: ["steel_coil"])
+    yolo_detection_model_path: str = "models/yolov8n-steel-coil.pt"
+    yolo_detection_conf_threshold: float = 0.4
+    yolo_detection_target_classes: List[str] = field(default_factory=lambda: ["steel_coil"])
     roi: Tuple[int, int, int, int] = (750, 0, 2056, 1440)
     detection_buffer_size: int = 10
     presence_threshold: int = 3
     absence_threshold: int = 5
 
     # Stage 3: Best Frame Selection
-    segmentation_model_path: str = "models/yolov11n-seg-steel-coil.pt"
-    seg_conf_threshold: float = 0.6
+    yolo_segmentation_model_path: str = "models/yolov11n-seg-steel-coil.pt"
+    yolo_segmentation_conf_threshold: float = 0.6
     ideal_coil_size: Tuple[int, int] = (1000, 1000)
     score_weights: Dict[str, float] = field(default_factory=lambda: {
-        "segmentation": 0.5,
+        "segmentation": 0.6,
         "centering": 0.25,
-        "size": 0.15,
-        "quality": 0.1
+        "size": 0.15
     })
 
     def __post_init__(self):
@@ -64,6 +66,5 @@ class CandidateFrame:
     segmentation_confidence: float = 0.0
     centering_score: float = 0.0
     size_score: float = 0.0
-    quality_score: float = 0.0
     mask: Optional[object] = None  # np.ndarray
     box: Optional[object] = None  # np.ndarray 

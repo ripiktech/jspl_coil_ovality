@@ -76,6 +76,40 @@ python main.py --log-level DEBUG
 - **Size Score**: 15%
 - **Quality Score**: 10%
 
+## Noise Classifier Integration
+
+The system now includes an optional binary noise classifier to improve pre-filtering robustness:
+
+### Configuration
+```python
+# Enable/disable noise filtering
+config.enable_noise_filtering = True
+
+# Path to your pretrained noise classifier
+config.noise_classifier_path = "models/noise_classifier.pt"
+
+# Confidence threshold for noise detection
+config.noise_conf_threshold = 0.5
+```
+
+### Supported Model Formats
+- **PyTorch**: `.pt` files (default)
+- **ONNX**: `.onnx` files (requires `onnxruntime`)
+- **TensorFlow**: `.pb` files (requires `tensorflow`)
+
+### Integration Points
+The noise classifier is integrated into the pre-filtering stage and will reject frames classified as noisy before they reach the expensive detection and segmentation stages.
+
+### Testing
+Use the provided test script to validate your noise classifier:
+```bash
+# Test with sample frame
+python test_noise_classifier.py
+
+# Test with video file
+python test_noise_classifier.py --video path/to/test_video.mp4
+```
+
 ## Output
 
 The system saves comprehensive results for each detected steel coil:

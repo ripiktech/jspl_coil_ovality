@@ -6,8 +6,7 @@ Provides methods to calculate ovality from segmentation masks.
 import cv2
 import numpy as np
 import traceback
-from typing import Optional, Tuple, List, Dict
-import logging
+from typing import Optional, Dict
 from ripikutils.logsman import setup_logger
 
 
@@ -15,28 +14,34 @@ class OvalityCalculator:
     """Calculates ovality from a segmentation mask using multiple methods."""
     
     def __init__(self):
-        """Initialize the ovality calculator."""
         self.logger = setup_logger(name=__name__)
     
-    def calculate(self, mask: np.ndarray) -> Optional[float]:
-        """
-        Calculate ovality from a segmentation mask.
-        
-        Args:
-            mask: Binary segmentation mask
+    def calculate_multiple_methods(self, mask: np.ndarray) -> Dict[str, Optional[float]]:
+        try:
+            results = {}
+            results['ellipse'] = self._calculate(mask)
+            results['perimeter_area'] = self._calculate_perimeter_area_ovality(mask)
+            results['bounding_rect'] = self._calculate_bounding_rect_ovality(mask)
+            return results
             
-        Returns:
-            Ovality value between 0 and 1, or None if calculation fails
-        """
+        except Exception as e:
+            self.logger.error(f"Error calculating multiple ovality methods: {e}")
+            self.logger.error(f"Traceback: {traceback.format_exc()}")
+            return {
+                'ellipse': None,
+                'perimeter_area': None,
+                'bounding_rect': None
+            }
+    
+    def _calculate(self, mask: np.ndarray) -> Optional[float]:
+        """Calculate ovality from a segmentation mask."""
         try:
             if mask is None or mask.size == 0:
                 self.logger.warning("Empty or None mask provided")
                 return None
             
-            # Convert to uint8 for contour detection
             mask_uint8 = mask.astype(np.uint8)
             
-            # Find contours
             contours, _ = cv2.findContours(
                 mask_uint8, 
                 cv2.RETR_EXTERNAL, 
@@ -47,14 +52,12 @@ class OvalityCalculator:
                 self.logger.warning("No contours found in mask")
                 return None
 
-            # Get the largest contour
             contour = max(contours, key=cv2.contourArea)
             
             if len(contour) < 5:
                 self.logger.warning("Contour has insufficient points for ellipse fitting")
                 return None
 
-            # Fit ellipse to contour
             ellipse = cv2.fitEllipse(contour)
             (center_x, center_y), (minor_axis, major_axis), angle = ellipse
             
@@ -75,39 +78,6 @@ class OvalityCalculator:
             self.logger.error(f"Traceback: {traceback.format_exc()}")
             return None
     
-    def calculate_multiple_methods(self, mask: np.ndarray) -> Dict[str, Optional[float]]:
-        """
-        Calculate ovality using multiple methods for comparison.
-        
-        Args:
-            mask: Binary segmentation mask
-            
-        Returns:
-            Dictionary with ovality values from different methods
-        """
-        try:
-            results = {}
-            
-            # Method 1: Ellipse fitting (primary method)
-            results['ellipse'] = self.calculate(mask)
-            
-            # Method 2: Perimeter to area ratio
-            results['perimeter_area'] = self._calculate_perimeter_area_ovality(mask)
-            
-            # Method 3: Bounding rectangle analysis
-            results['bounding_rect'] = self._calculate_bounding_rect_ovality(mask)
-            
-            return results
-            
-        except Exception as e:
-            self.logger.error(f"Error calculating multiple ovality methods: {e}")
-            self.logger.error(f"Traceback: {traceback.format_exc()}")
-            return {
-                'ellipse': None,
-                'perimeter_area': None,
-                'bounding_rect': None
-            }
-    
     def _calculate_perimeter_area_ovality(self, mask: np.ndarray) -> Optional[float]:
         """Calculate ovality using perimeter to area ratio."""
         try:
@@ -118,15 +88,14 @@ class OvalityCalculator:
                 cv2.CHAIN_APPROX_SIMPLE
             )
             
-            if not contours:
-                return None
+            if not contours: return None
                 
             contour = max(contours, key=cv2.contourArea)
             perimeter = cv2.arcLength(contour, True)
             area = cv2.contourArea(contour)
             
             if area > 0:
-                # Circularity = 4π * area / perimeter²
+                # Circularity = 4 * pi * area / perimeter^2
                 # Ovality is inverse of circularity
                 circularity = 4 * np.pi * area / (perimeter ** 2)
                 ovality = 1 - circularity
@@ -157,7 +126,7 @@ class OvalityCalculator:
                 # Ovality based on aspect ratio
                 aspect_ratio = max(w, h) / min(w, h)
                 ovality = (aspect_ratio - 1) / aspect_ratio
-                return max(0, min(1, ovality))  # Clamp between 0 and 1
+                return max(0, min(1, ovality))
                 
         except Exception as e:
             self.logger.error(f"Error in bounding rectangle calculation: {e}")
