@@ -18,7 +18,7 @@ from .config import DeploymentConfig, CandidateFrame
 from .pipeline import DeploymentPipeline
 from .ovality_calculator import OvalityCalculator
 from .detection import PreFilter, CoilDetector, EventStateManager
-from .scoring import CombinedScoreCalculator, QualityAnalyzer
+from .scoring import CombinedScoreCalculator
 
 __version__ = "1.0.0"
 __author__ = "Ripik Tech"
@@ -32,6 +32,5 @@ __all__ = [
     "PreFilter",
     "CoilDetector", 
     "EventStateManager",
-    "CombinedScoreCalculator",
-    "QualityAnalyzer"
+    "CombinedScoreCalculator"
 ]

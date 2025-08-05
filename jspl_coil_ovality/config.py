@@ -30,18 +30,15 @@ class DeploymentConfig:
     noise_conf_threshold: float = 0.5
     enable_noise_filtering: bool = True
 
-    # Stage 2: Coil Presence Confirmation
-    yolo_detection_model_path: str = "models/yolov8n-steel-coil.pt"
-    yolo_detection_conf_threshold: float = 0.4
-    yolo_detection_target_classes: List[str] = field(default_factory=lambda: ["steel_coil"])
+    # Stage 2 & 3: Unified YOLOv11n-seg Model for Detection and Segmentation
+    yolo_model_path: str = "models/yolov11n-seg-steel-coil.pt"
+    yolo_detection_conf_threshold: float = 0.4  # For presence detection
+    yolo_segmentation_conf_threshold: float = 0.6  # For final segmentation
+    yolo_target_classes: List[str] = field(default_factory=lambda: ["steel_coil"])
     roi: Tuple[int, int, int, int] = (750, 0, 2056, 1440)
     detection_buffer_size: int = 10
     presence_threshold: int = 3
     absence_threshold: int = 5
-
-    # Stage 3: Best Frame Selection
-    yolo_segmentation_model_path: str = "models/yolov11n-seg-steel-coil.pt"
-    yolo_segmentation_conf_threshold: float = 0.6
     ideal_coil_size: Tuple[int, int] = (1000, 1000)
     score_weights: Dict[str, float] = field(default_factory=lambda: {
         "segmentation": 0.6,

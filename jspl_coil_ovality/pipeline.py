@@ -49,8 +49,8 @@ class DeploymentPipeline:
         self.coil_detector = CoilDetector(config)
         self.event_manager = EventStateManager(config)
         
-        self.segmentation_model = YOLO(self.config.yolo_segmentation_model_path)
-        self.logger.info(f"Loaded segmentation model: {self.config.yolo_segmentation_model_path}")
+        self.segmentation_model = YOLO(self.config.yolo_model_path)
+        self.logger.info(f"Loaded unified YOLOv11n-seg model for segmentation: {self.config.yolo_model_path}")
         
         self.score_calculator = CombinedScoreCalculator(config, self.segmentation_model)
         self.ovality_calculator = OvalityCalculator()
@@ -131,8 +131,8 @@ class DeploymentPipeline:
                     "size": candidate.size_score,
                 },
                 "model_info": {
-                    "detection_model": self.config.yolo_detection_model_path,
-                    "segmentation_model": self.config.yolo_segmentation_model_path
+                    "unified_model": self.config.yolo_model_path,
+                    "model_type": "YOLOv11n-seg (detection + segmentation)"
                 }
             }
             

@@ -1,11 +1,6 @@
 #!/usr/bin/env python3
 """
-JSPL Steel Coil Ovality Detection - Main Entry Point
-====================================================
-
-This is the main entry point for the JSPL Steel Coil Ovality Detection system.
-It provides a clean interface to run the deployment pipeline with proper
-error handling and logging setup.
+JSPL Steel Coil Ovality Detection
 
 Usage:
     python main.py
@@ -39,17 +34,13 @@ def signal_handler(signum, frame):
 def validate_model_paths(config: DeploymentConfig) -> bool:
     logger = logging.getLogger(__name__)
     
-    if not os.path.exists(config.yolo_detection_model_path):
-        logger.error(f"Detection model not found: {config.yolo_detection_model_path}")
-        logger.info("Please ensure your fine-tuned YOLOv8n model is placed in the models/ directory")
-        return False
-    
-    if not os.path.exists(config.yolo_segmentation_model_path):
-        logger.error(f"Segmentation model not found: {config.yolo_segmentation_model_path}")
+    if not os.path.exists(config.yolo_model_path):
+        logger.error(f"Unified YOLOv11n-seg model not found: {config.yolo_model_path}")
         logger.info("Please ensure your fine-tuned YOLOv11n-seg model is placed in the models/ directory")
+        logger.info("This single model will handle both detection and segmentation tasks")
         return False
     
-    logger.info("All model files validated successfully")
+    logger.info("Unified YOLOv11n-seg model validated successfully")
     return True
 
 
@@ -57,15 +48,10 @@ def parse_arguments():
     parser = argparse.ArgumentParser(
         description="JSPL Steel Coil Ovality Detection System",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Examples:
-  python main.py
-  python main.py --rtsp-url "rtsp://admin:pass@192.168.1.100:554/stream"
-  python main.py --debug
-        """
     )
     
     parser.add_argument('--rtsp-url', type=str, help='RTSP stream URL (default: from config)')
+    parser.add_argument('--model', type=str, help='Path to YOLOv11n-seg model (default: from config)')
     parser.add_argument('--debug', action='store_true', help='Enable debug logging')
     return parser.parse_args()
 
@@ -73,6 +59,7 @@ Examples:
 def create_config_from_args(args) -> DeploymentConfig:
     config = DeploymentConfig()
     if args.rtsp_url: config.rtsp_url = args.rtsp_url
+    if args.model: config.yolo_model_path = args.model
     if args.debug: config.logging_level = "DEBUG"
     return config
 

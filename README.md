@@ -7,9 +7,9 @@ A comprehensive real-time steel coil detection and ovality analysis system using
 This system provides automated detection and ovality analysis of steel coils from RTSP video streams. It uses a sophisticated multi-stage pipeline to:
 
 1. **Pre-filter** frames for motion, brightness, and quality
-2. **Detect** steel coils using fine-tuned YOLOv8n
+2. **Detect** steel coils using fine-tuned YOLOv11n-segmentation
 3. **Select** the best frame during coil events
-4. **Analyze** ovality using fine-tuned YOLOv11n-segmentation
+4. **Analyze** ovality using the same YOLOv11n-segmentation model
 5. **Save** results with comprehensive metadata
 
 ## Architecture
@@ -35,9 +35,8 @@ jspl_coil_ovality/
 
 ### Prerequisites
 
-1. **Fine-tuned Models**: Place your trained models in the `models/` directory:
-   - `models/yolov8n-steel-coil.pt` - Detection model
-   - `models/yolov11n-seg-steel-coil.pt` - Segmentation model
+1. **Fine-tuned Model**: Place your trained model in the `models/` directory:
+   - `models/yolov11n-seg-steel-coil.pt` - Unified detection and segmentation model
 
 2. **Dependencies**: Install required packages:
    ```bash
@@ -53,8 +52,8 @@ python main.py
 # Run with custom RTSP URL
 python main.py --rtsp-url "rtsp://admin:pass@192.168.1.100:554/stream"
 
-# Run with custom models
-python main.py --detection-model "models/custom-detection.pt" --segmentation-model "models/custom-segmentation.pt"
+# Run with custom model
+python main.py --model "models/custom-yolov11n-seg.pt"
 
 # Run with debug logging
 python main.py --log-level DEBUG
@@ -62,9 +61,8 @@ python main.py --log-level DEBUG
 
 ## Configuration
 
-### Model Paths
-- **Detection Model**: `models/yolov8n-steel-coil.pt`
-- **Segmentation Model**: `models/yolov11n-seg-steel-coil.pt`
+### Model Path
+- **Unified Model**: `models/yolov11n-seg-steel-coil.pt` (handles both detection and segmentation)
 
 ### Confidence Thresholds
 - **Detection**: 0.4 (higher for fine-tuned models)
@@ -133,8 +131,8 @@ The system saves comprehensive results for each detected steel coil:
     "quality": 0.82
   },
   "model_info": {
-    "detection_model": "models/yolov8n-steel-coil.pt",
-    "segmentation_model": "models/yolov11n-seg-steel-coil.pt"
+    "unified_model": "models/yolov11n-seg-steel-coil.pt",
+    "model_type": "YOLOv11n-seg (detection + segmentation)"
   }
 }
 ```
@@ -145,10 +143,9 @@ The system saves comprehensive results for each detected steel coil:
 ```bash
 python main.py \
   --rtsp-url "rtsp://your-stream" \
-  --detection-model "models/custom-detection.pt" \
-  --segmentation-model "models/custom-segmentation.pt" \
-  --detection-confidence 0.5 \
-  --segmentation-confidence 0.7 \
+  --model "models/custom-yolov11n-seg.pt" \
+  --detection-confidence 0.4 \
+  --segmentation-confidence 0.6 \
   --motion-threshold 1200 \
   --blur-threshold 150 \
   --log-level DEBUG

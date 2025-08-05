@@ -103,25 +103,25 @@ class PreFilter:
 
 
 class CoilDetector:
-    """Handles steel coil detection using fine-tuned YOLO models."""
+    """Handles steel coil detection using unified YOLOv11n-seg model."""
     
     def __init__(self, config: DeploymentConfig):
         self.config = config
         self.logger = setup_logger(name=__name__)
-        self.yolo_detection_model = YOLO(self.config.yolo_detection_model_path)
-        self.logger.info(f"Loaded YOLOv8n-steel-coil: {self.config.yolo_detection_model_path}")
+        self.yolo_model = YOLO(self.config.yolo_model_path)
+        self.logger.info(f"Loaded unified YOLOv11n-seg model: {self.config.yolo_model_path}")
     
     def confirm_coil_presence(self, frame: np.ndarray) -> bool:
         try:
-            results = self.yolo_detection_model(frame, conf=self.config.yolo_detection_conf_threshold, verbose=False)
+            results = self.yolo_model(frame, conf=self.config.yolo_detection_conf_threshold, verbose=False)
             x_min, y_min, x_max, y_max = self.config.roi
             
             if results and results[0].boxes:
                 for box in results[0].boxes:
-                    class_name = self.yolo_detection_model.names[int(box.cls)]
+                    class_name = self.yolo_model.names[int(box.cls)]
                     confidence = float(box.conf)
                     
-                    if class_name in self.config.yolo_detection_target_classes:
+                    if class_name in self.config.yolo_target_classes:
                         bx, by, bw, bh = box.xywh[0]
                         if (x_min < bx < x_max) and (y_min < by < y_max):
                             self.logger.debug(f"Steel coil detected: {class_name} (conf: {confidence:.3f}) at ({bx:.1f}, {by:.1f})")
