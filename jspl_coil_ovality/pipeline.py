@@ -388,13 +388,14 @@ class DeploymentPipeline:
 
         stream = VideoStream(self.config.rtsp_url)
         frame_count = 0
+        no_frame_count = 0
         
         while self.running:
             try:
                 frame = stream.read()
                 if frame is None:
                     no_frame_count += 1
-                    if no_frame_count % 10 == 0:
+                    if no_frame_count % 100 == 0:
                         self.logger.warning(f"No frame received for {no_frame_count} attempts")
                     time.sleep(1.0)
                     continue
