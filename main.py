@@ -15,6 +15,8 @@ import signal
 import os
 import traceback
 from pathlib import Path
+import schedule
+from jspl_coil_ovality.pipeline import delete_old_images
 
 sys.path.insert(0, str(Path(__file__).parent))
 
@@ -73,6 +75,7 @@ def create_config_from_args(args) -> DeploymentConfig:
 
 def main():
     args = parse_arguments()
+    schedule.every().day.at("03:00").do(delete_old_images)
     
     try:
         config = create_config_from_args(args)
@@ -97,7 +100,7 @@ def main():
     sys.stderr = LoggerWriter(logger, logging.ERROR)
     
     print("=" * 60)
-    print("JSPL Steel Coil Ovality Detection System")
+    print("JSPL Steel Coil Ovality")
     print("=" * 60)
     
     try:
