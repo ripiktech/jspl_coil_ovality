@@ -66,6 +66,48 @@ class DeploymentPipeline:
         
         self.logger.info("Pipeline initialized.")
     
+    def push_data_to_mongo(self, response: dict):
+        """Push data directly to MongoDB using client meta configuration."""
+        try:
+            # Extract MongoDB info from client meta
+            if self.client_meta and 'internal' in self.client_meta:
+                internal = self.client_meta['internal']
+                if 'mongodb' in internal:
+                    mongodb_info = internal['mongodb']
+                    
+                    # Use actual MongoDB configuration
+                    db_url = mongodb_info.get('dbUrl', "mongodb+srv://rpkuser:YIjmmpiXSs52XdaN@rpkjspl.0eedi.mongodb.net/")
+                    db_name = mongodb_info.get('dbName', 'jspl-coil-ovality')
+                    collection_name = mongodb_info.get('coll', {}).get('history', 'history')
+                    
+                    self.logger.info(f"Connecting to DB: {db_name}")
+                    self.logger.info(f"DB URL: {db_url}")
+                    
+                    # Import pymongo here to avoid dependency issues
+                    from pymongo import MongoClient
+                    
+                    # Connect to MongoDB
+                    client = MongoClient(db_url)
+                    db = client[db_name]
+                    collection = db[collection_name]
+                    
+                    # Insert the response
+                    result = collection.insert_one(response)
+                    self.logger.info(f'Data pushed to MongoDB! Inserted ID: {result.inserted_id}')
+                    
+                    # Close connection
+                    client.close()
+                    
+                else:
+                    self.logger.error("MongoDB configuration not found in client meta")
+            else:
+                self.logger.error("Client meta not available for MongoDB push")
+                
+        except Exception as e:
+            self.logger.error(f'Failed to push data to MongoDB: {e}')
+            import traceback
+            self.logger.error(f'Traceback: {traceback.format_exc()}')
+            
     async def push_data_to_mongo_go(self, response: dict):
         """Push data to MongoDB using NATS."""
         try:
@@ -241,20 +283,19 @@ class DeploymentPipeline:
             }
             
             # Push to MongoDB
-            backend_response = self._prepare_response_for_backend(response)
-            asyncio.run(self.push_data_to_mongo_go(backend_response))
+            self.push_data_to_mongo(response)
             
         except Exception as e:
             self.logger.error(f"Error saving results: {e}")
     
     def _determine_shape_status(self, ovality: Optional[float]) -> tuple[str, int, bool]:
         """Determine shape status, index and alert based on ovality value."""
-        if ovality < 0.15 or ovality is None:
-            return "Low", 0, False
+        if ovality is None or ovality < 0.15:
+            return "Circular", 0, False
         elif ovality < 0.20:
-            return "Moderate", 1, True
+            return "Ovality", 1, True
         else:
-            return "High", 2, True
+            return "Ovality", 2, True
     
     def _get_synchronized_entity_id(self) -> int:
         """Generate entityId synchronized with coil camera system."""
