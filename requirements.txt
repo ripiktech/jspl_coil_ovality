@@ -14,6 +14,15 @@ tqdm>=4.65.0
 pyyaml>=6.0
 ripikutils>=1.0.0
 
+# ClientMeta integration
+ripikvisionpy>=1.0.0
+
+# AWS S3
+boto3>=1.26.0
+
+# Async HTTP for GO backend
+aiohttp>=3.8.0
+
 # Optional: For advanced image processing
 albumentations>=1.3.0
 scikit-learn>=1.3.0

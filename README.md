@@ -59,6 +59,48 @@ python main.py --model "models/custom-yolov11n-seg.pt"
 python main.py --log-level DEBUG
 ```
 
+## ClientMeta Validation
+
+The system now includes mandatory clientMeta connection validation to ensure the DS logic only starts when the backend is up and running.
+
+### ClientMeta Integration
+
+The system validates clientMeta connection before starting any DS processing:
+
+1. **Initial Validation**: Checks clientMeta connection during startup
+2. **Periodic Validation**: Validates connection every 30 seconds during runtime
+3. **Graceful Handling**: Logs errors but continues running if connection is lost
+
+### Usage with ClientMeta
+
+```bash
+# Production environment
+python main.py --client-id jspl_production
+
+# Stage environment (uses stage clientMeta)
+python main.py --client-id jspl_stage
+
+# With custom RTSP URL
+python main.py --client-id jspl_production --rtsp-url "rtsp://your-stream"
+
+# Debug mode
+python main.py --client-id jspl_production --debug
+```
+
+### ClientMeta Configuration
+
+The system automatically handles different environments:
+
+- **Production**: Uses `R_PROD` environment
+- **Stage**: Uses `R_STAGE` environment (when client_id contains '-stage')
+- **AWS Bucket**: Automatically switches to dev bucket for stage environment
+
+### Error Handling
+
+- **Connection Failed**: System exits with error message
+- **Connection Lost**: System logs error but continues processing
+- **Backend Down**: DS logic pauses until connection is restored
+
 ## Configuration
 
 ### Model Path
@@ -178,34 +220,3 @@ New best steel coil frame found with score: 0.85
 <<< STEEL COIL EVENT ENDED <<<
 Steel coil results saved to steel_coil_20250130_171707_...
 ```
-
-## Development
-
-### Adding New Features
-1. **New Detection Classes**: Update `config.py` → `proxy_target_classes`
-2. **Custom Scoring**: Modify `scoring.py` → `CombinedScoreCalculator`
-3. **Additional Analysis**: Extend `ovality_calculator.py`
-
-### Testing
-```bash
-# Test with sample images
-python -c "from jspl_coil_ovality import OvalityCalculator; print('System ready')"
-```
-
-## Performance
-
-### Optimizations
-- **Frame Skipping**: Processes every 2nd frame
-- **Early Rejection**: Fast pre-filtering
-- **Memory Efficient**: Streaming processing
-- **Error Recovery**: Automatic reconnection
-
-### Expected Performance
-- **Detection Rate**: 95%+ with fine-tuned models
-- **Processing Speed**: 15-30 FPS (depending on hardware)
-- **Accuracy**: High precision ovality measurement
-
----
-
-**Note**: This system is specifically designed for steel coil detection and ovality analysis. Ensure your fine-tuned models are trained on steel coil datasets for optimal performance.
-

@@ -21,6 +21,14 @@ class DeploymentConfig:
     backup_count: int = 5
     logging_level: str = "INFO"
 
+    # ClientMeta Configuration
+    client_id: str = "default_client"
+    use_case: str = "steel_coil_ovality"
+    aws_bucket_name: str = "rpk-clnt-in"
+    client_meta_version: int = 1
+    client_meta_env: str = "R_PROD"
+    client_meta_stage_env: str = "R_STAGE"
+
     # Stage 1: Pre-filtering Configuration
     motion_threshold: float = 1000.0
     blur_threshold: float = 100.0
@@ -45,15 +53,6 @@ class DeploymentConfig:
         "centering": 0.25,
         "size": 0.15
     })
-
-    def __post_init__(self):
-        """Validate configuration after initialization."""
-        os.makedirs(self.output_dir, exist_ok=True)
-        os.makedirs(self.log_dir, exist_ok=True)
-        
-        if abs(sum(self.score_weights.values()) - 1.0) > 0.001:
-            raise ValueError("Score weights must sum to 1.0")
-
 
 @dataclass
 class CandidateFrame:
