@@ -12,10 +12,10 @@ scikit-image>=0.21.0
 # Logging and utilities
 tqdm>=4.65.0
 pyyaml>=6.0
-ripikutils>=1.0.0
+# ripikutils>=1.0.0
 
 # ClientMeta integration
-ripikvisionpy>=1.0.0
+# ripikvisionpy>=1.0.0
 
 # AWS S3
 boto3>=1.26.0

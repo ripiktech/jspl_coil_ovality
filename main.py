@@ -13,10 +13,8 @@ import logging
 import sys
 import signal
 import os
-import traceback
 from pathlib import Path
 import schedule
-from jspl_coil_ovality.pipeline import delete_old_images
 
 sys.path.insert(0, str(Path(__file__).parent))
 
@@ -75,7 +73,7 @@ def create_config_from_args(args) -> DeploymentConfig:
 
 def main():
     args = parse_arguments()
-    schedule.every().day.at("03:00").do(delete_old_images)
+    schedule.every().day.at("03:00").do(DeploymentPipeline.delete_old_images)
     
     try:
         config = create_config_from_args(args)

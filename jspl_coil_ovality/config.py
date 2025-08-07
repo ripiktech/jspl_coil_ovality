@@ -22,8 +22,8 @@ class DeploymentConfig:
     logging_level: str = "INFO"
 
     # ClientMeta Configuration
-    client_id: str = "default_client"
-    use_case: str = "coilovality"
+    client_id: str = "jindalsteel-stage"
+    use_case: str = "coilidtracking"
     aws_bucket_name: str = "rpk-clnt-in"
     client_meta_version: int = 1
     client_meta_env: str = "R_PROD"
@@ -34,7 +34,7 @@ class DeploymentConfig:
     blur_threshold: float = 100.0
     min_brightness: int = 40
     max_brightness: int = 210
-    noise_classifier_path: str = "models/noise_classifier.pt"
+    noise_classifier_path: str = "models/noise_classifier.pth"
     noise_conf_threshold: float = 0.5
     enable_noise_filtering: bool = True
 
