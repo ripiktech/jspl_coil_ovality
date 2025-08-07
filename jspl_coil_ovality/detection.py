@@ -31,7 +31,7 @@ class NoiseClassifier:
             
         try:
             self.device = "cuda" if torch.cuda.is_available() else "cpu"
-            self.model = torch.load(config.noise_classifier_path, map_location=self.device)
+            self.model = torch.load(config.noise_classifier_path, map_location=self.device, weights_only=False)
             self.model.eval()
             self.transformations = Compose([
                 Resize((512, 512)),
