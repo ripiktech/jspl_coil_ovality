@@ -15,6 +15,8 @@ import asyncio
 import nats
 from datetime import datetime
 from typing import Optional
+from dotenv import load_dotenv
+import os
 
 from ultralytics import YOLO
 from ripikutils.logsman import setup_logger, LoggerWriter
@@ -26,6 +28,7 @@ from .detection import PreFilter, CoilDetector, EventStateManager
 from .scoring import CombinedScoreCalculator
 from .ovality_calculator import OvalityCalculator
 
+load_dotenv()
 
 class DeploymentPipeline:
     """Main deployment pipeline orchestrating all stages for steel coil detection."""
@@ -149,25 +152,19 @@ class DeploymentPipeline:
         except Exception as e:
             self.logger.error(f"Failed to push to MongoDB via NATS: {e}")
     
-    def _upload_to_s3(self, file_path: str, s3_key: str) -> str:
+    def _upload_to_s3(self, file_path: str, s3_key: str, config) -> str:
         """Upload file to S3 using actual configuration."""
         try:
-            # Use actual S3 configuration from client meta test
-            bucket_name = "rpk-clnt-in-prd"
-            region = "ap-south-1"
-            access_key = "AKIAWMM7GHFY27ZPFIWU"
-            secret_key = "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"
-            
-            # Create S3 client with actual credentials
+            # Create S3 client
             s3_client = boto3.client(
                 's3',
-                aws_access_key_id=access_key,
-                aws_secret_access_key=secret_key,
-                region_name=region
+                aws_access_key_id=os.getenv('access_key'),
+                aws_secret_access_key=os.getenv('secret_key'),
+                region_name=self.os.getenv('region')
             )
             
-            s3_client.upload_file(file_path, bucket_name, s3_key)
-            s3_url = f"https://{bucket_name}.s3.{region}.amazonaws.com/{s3_key}"
+            s3_client.upload_file(file_path, os.getenv('bucket_name'), s3_key)
+            s3_url = f"https://{os.getenv('bucket_name')}.s3.{os.getenv('region')}.amazonaws.com/{s3_key}"
             self.logger.info(f"Uploaded to S3: {s3_url}")
             return s3_url
             
@@ -396,10 +393,18 @@ class DeploymentPipeline:
             try:
                 frame = stream.read()
                 if frame is None:
+                    no_frame_count += 1
+                    if no_frame_count % 10 == 0:
+                        self.logger.warning(f"No frame received for {no_frame_count} attempts")
                     time.sleep(1.0)
                     continue
 
+                no_frame_count = 0  # Reset counter when frame is received
                 frame_count += 1
+                
+                if frame_count % 30 == 0:  # Log every 30th frame
+                    self.logger.info(f"Processing frame {frame_count}")
+                
                 self.process_frame(frame)
                 
             except Exception as e:
