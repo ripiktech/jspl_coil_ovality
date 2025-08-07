@@ -23,7 +23,7 @@ class DeploymentConfig:
 
     # ClientMeta Configuration
     client_id: str = "default_client"
-    use_case: str = "steel_coil_ovality"
+    use_case: str = "coilovality"
     aws_bucket_name: str = "rpk-clnt-in"
     client_meta_version: int = 1
     client_meta_env: str = "R_PROD"

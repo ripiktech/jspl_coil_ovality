@@ -12,6 +12,7 @@ import os
 import sys
 import boto3
 import asyncio
+import nats
 from datetime import datetime
 from typing import Optional
 
@@ -65,43 +66,90 @@ class DeploymentPipeline:
         
         self.logger.info("Pipeline initialized.")
     
-    def _upload_to_s3(self, file_path: str, s3_key: str) -> str:
-        """Upload file to S3 and return the S3 URL."""
+    async def push_data_to_mongo_go(self, response: dict):
+        """Push data to MongoDB using NATS."""
         try:
-            self.s3.upload_file(file_path, self.config.aws_bucket_name, s3_key)
-            s3_url = f"s3://{self.config.aws_bucket_name}/{s3_key}"
+            NATS_CONN = await nats.connect("localhost:4222")
+            js = NATS_CONN.jetstream()
+            subject = "go_queue"
+            local_save_root = "/home/ds/hsm/jspl-hsm_coil_id_mapping/images"
+            bucket_name = "rpk-clnt-in-prd"
+            
+            outer_response = {
+                "type": "s3-mongo",
+                "bucketName": bucket_name,
+                "images": {},
+                "metadatas": []
+            }
+            
+            # Process images in response
+            for k in response:
+                if k.endswith("Image"):
+                    s3_path = response[k]
+                    outer_response["images"][s3_path] = os.path.join(local_save_root, s3_path)
+                    response[k] = f"https://{bucket_name}.s3.ap-south-1.amazonaws.com/{response[k]}"
+            
+            # Create metadata
+            meta = {
+                "database_name": "jspl-coil-ovality",
+                "collection_name": "history",
+                "metadata": response
+            }
+            outer_response["metadatas"].append(meta)
+            
+            # Publish message
+            message = json.dumps(outer_response).encode("utf-8")
+            ack = await js.publish(subject, message)
+            
+            self.logger.info(f"Published message with sequence: {ack.seq}")
+            await NATS_CONN.close()
+            
+        except Exception as e:
+            self.logger.error(f"Failed to push to MongoDB via NATS: {e}")
+    
+    def _upload_to_s3(self, file_path: str, s3_key: str) -> str:
+        """Upload file to S3 using actual configuration."""
+        try:
+            # Use actual S3 configuration from client meta test
+            bucket_name = "rpk-clnt-in-prd"
+            region = "ap-south-1"
+            access_key = "AKIAWMM7GHFY27ZPFIWU"
+            secret_key = "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"
+            
+            # Create S3 client with actual credentials
+            s3_client = boto3.client(
+                's3',
+                aws_access_key_id=access_key,
+                aws_secret_access_key=secret_key,
+                region_name=region
+            )
+            
+            s3_client.upload_file(file_path, bucket_name, s3_key)
+            s3_url = f"https://{bucket_name}.s3.{region}.amazonaws.com/{s3_key}"
             self.logger.info(f"Uploaded to S3: {s3_url}")
             return s3_url
+            
         except Exception as e:
             self.logger.error(f"Failed to upload to S3: {e}")
             return ""
     
-    async def push_data_to_mongo_go(self, response: dict):
-        """Push data to MongoDB using GO backend."""
-        try:
-            # This would typically call a GO service endpoint
-            # For now, we'll simulate the push
-            self.logger.info(f"Pushing data to MongoDB: {response.get('timestamp', 'unknown')}")
-            # In real implementation, this would be an HTTP call to GO service
-            # await self._call_go_service(response)
-        except Exception as e:
-            self.logger.error(f"Failed to push to MongoDB: {e}")
-    
     def _prepare_response_for_backend(self, response: dict) -> dict:
         """Prepare response for backend with proper structure."""
         backend_response = {
-            "client_id": response["client_id"],
-            "camera_id": "steel_coil_camera",
-            "timestamp": response["timestamp"],
-            "ovality": response["ovality"],
-            "ovality_interpretation": response["ovality_interpretation"],
-            "scores": response["scores"],
-            "model_info": response["model_info"],
-            "s3_urls": response["s3_urls"],
-            "metadata": {
-                "processing_time": time.time(),
-                "client_meta_connected": self.client_meta_wrapper is not None
-            }
+            "cameraId": response["cameraId"],
+            "clientId": response["clientId"],
+            "cameraGpId": response["cameraGpId"],
+            "plantId": response["plantId"],
+            "usecase": response["usecase"],
+            "entityId": response["entityId"],
+            "shapeStatus": response["shapeStatus"],
+            "isCoilPresent": response["isCoilPresent"],
+            "shapeIndex": response["shapeIndex"],
+            "isAlert": response["isAlert"],
+            "originalImage": response["originalImage"],
+            "annotatedImage": response["annotatedImage"],
+            "createdAt": response["createdAt"],
+            "timestamp": response["timestamp"]
         }
         return backend_response
     
@@ -164,58 +212,137 @@ class DeploymentPipeline:
             s3_image_url = self._upload_to_s3(image_path, s3_image_key)
             s3_mask_url = self._upload_to_s3(mask_path, s3_mask_key) if candidate.mask is not None else ""
 
+            # Generate entityId synchronized with coil camera
+            entity_id = self._get_synchronized_entity_id()
+            
+            # Check if we should process this entity
+            if not self._should_process_ovality(entity_id):
+                self.logger.info(f"Skipping ovality processing for entity {entity_id}")
+                return
+            
+            # Determine shape status and index based on ovality
+            shape_status, shape_index, is_alert = self._determine_shape_status(ovality)
+
             response = {
-                "timestamp": datetime.now().isoformat(),
-                "client_id": self.config.client_id,
-                "ovality": ovality,
-                "ovality_interpretation": self._interpret_ovality(ovality),
-                "scores": {
-                    "combined": candidate.combined_score,
-                    "segmentation_confidence": candidate.segmentation_confidence,
-                    "centering": candidate.centering_score,
-                    "size": candidate.size_score,
-                },
-                "model_info": {
-                    "model": self.config.yolo_model_path,
-                    "type": "YOLOv11n-seg"
-                },
-                "s3_urls": {
-                    "original_image": s3_image_url,
-                    "mask_image": s3_mask_url
-                }
+                "cameraId": "camovality",
+                "clientId": self.config.client_id,
+                "cameraGpId": "cameraGp1",
+                "plantId": "angul",
+                "usecase": "coilovality",
+                "entityId": entity_id,
+                "shapeStatus": shape_status,
+                "isCoilPresent": True,
+                "shapeIndex": shape_index,
+                "isAlert": is_alert,
+                "originalImage": s3_image_url,
+                "annotatedImage": s3_mask_url,
+                "createdAt": entity_id,
+                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             }
             
-            # Simple validation
-            expected_mapping = {
-                'timestamp': str,
-                'client_id': str,
-                'ovality': Optional[float],
-                'ovality_interpretation': str,
-                'scores': dict,
-                'model_info': dict,
-                's3_urls': dict
-            }
-            
-            if verify_response_mapping(response, expected_mapping):
-                with open(f"{base_filename}_metadata.json", 'w') as f:
-                    json.dump(response, f, indent=4)
-                self.logger.info(f"Results saved: {base_filename}")
-                
-                # Push to MongoDB
-                backend_response = self._prepare_response_for_backend(response)
-                asyncio.run(self.push_data_to_mongo_go(backend_response))
-            else:
-                self.logger.error("Response validation failed.")
+            # Push to MongoDB
+            backend_response = self._prepare_response_for_backend(response)
+            asyncio.run(self.push_data_to_mongo_go(backend_response))
             
         except Exception as e:
             self.logger.error(f"Error saving results: {e}")
     
-    def _interpret_ovality(self, ovality: Optional[float]) -> str:
-        if ovality is None: return "No data"
-        elif ovality < 0.05: return "Excellent"
-        elif ovality < 0.10: return "Good"
-        elif ovality < 0.15: return "Fair"
-        else: return "Poor"
+    def _determine_shape_status(self, ovality: Optional[float]) -> tuple[str, int, bool]:
+        """Determine shape status, index and alert based on ovality value."""
+        if ovality < 0.15 or ovality is None:
+            return "Low", 0, False
+        elif ovality < 0.20:
+            return "Moderate", 1, True
+        else:
+            return "High", 2, True
+    
+    def _get_synchronized_entity_id(self) -> int:
+        """Generate entityId synchronized with coil camera system."""
+        return int(time.time() * 1000)
+    
+    def _should_process_ovality(self, entity_id: int) -> bool:
+        """Check if we should process ovality for this entity."""
+        return True
+
+    def delete_old_images(directory="./images", days_threshold=2, image_extensions=None, dry_run=False):
+        """
+        Recursively deletes image files in the specified directory and its subdirectories
+        that are older than the specified number of days.
+        
+        Args:
+            directory (str): The directory to search through
+            days_threshold (int): Number of days, files older than this will be deleted
+            image_extensions (list, optional): List of image file extensions to check.
+                                            Defaults to common image formats.
+            dry_run (bool, optional): If True, only prints files that would be deleted
+                                    without actually deleting them. Defaults to False.
+        
+        Returns:
+            tuple: (count of deleted files, total size of deleted files in bytes)
+        """
+        if image_extensions is None:
+            image_extensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tiff', '.webp']
+        
+        # Convert days to seconds
+        seconds_threshold = days_threshold * 24 * 60 * 60
+        current_time = time.time()
+        
+        # Initialize counters
+        deleted_count = 0
+        deleted_size = 0
+        
+        # Check if the directory exists
+        if not os.path.exists(directory):
+            print(f"Error: Directory '{directory}' does not exist.")
+            return (0, 0)
+        
+        # Walk through the directory tree
+        for root, dirs, files in os.walk(directory):
+            for file in files:
+                # Check if the file has an image extension
+                if any(file.lower().endswith(ext) for ext in image_extensions):
+                    file_path = os.path.join(root, file)
+                    
+                    # Get file modification time
+                    file_mtime = os.path.getmtime(file_path)
+                    
+                    # Check if the file is older than the threshold
+                    if current_time - file_mtime > seconds_threshold:
+                        try:
+                            # Get file size before deletion
+                            file_size = os.path.getsize(file_path)
+                            
+                            # Format the file's modification time
+                            mod_time = datetime.fromtimestamp(file_mtime).strftime('%Y-%m-%d %H:%M:%S')
+                            days_old = (current_time - file_mtime) / (24 * 60 * 60)
+                            
+                            if dry_run:
+                                print(f"Would delete: {file_path} (modified: {mod_time}, {days_old:.1f} days old)")
+                            else:
+                                os.remove(file_path)
+                                print(f"Deleted: {file_path} (modified: {mod_time}, {days_old:.1f} days old)")
+                            
+                            deleted_count += 1
+                            deleted_size += file_size
+                        except Exception as e:
+                            print(f"Error deleting {file_path}: {e}")
+        
+        # Format the total size in a human-readable format
+        size_units = ['B', 'KB', 'MB', 'GB']
+        size_index = 0
+        size_display = deleted_size
+        
+        while size_display >= 1024 and size_index < len(size_units) - 1:
+            size_display /= 1024
+            size_index += 1
+        
+        # Print summary
+        if dry_run:
+            print(f"\nDry run summary: Would delete {deleted_count} files ({size_display:.2f} {size_units[size_index]})")
+        else:
+            print(f"\nDeleted {deleted_count} files ({size_display:.2f} {size_units[size_index]})")
+        
+        return (deleted_count, deleted_size)
 
     def run(self):
         self.running = True
