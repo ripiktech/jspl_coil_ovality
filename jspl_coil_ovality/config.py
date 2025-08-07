@@ -11,7 +11,7 @@ import os
 @dataclass
 class DeploymentConfig:
     """Configuration for the deployment pipeline."""
-    rtsp_url: str = "rtsp://admin:Ripik.ai@43.204.215.195:8554/angul_jspl"
+    rtsp_url: str = "rtsp://admin:Ripik.ai@10.37.0.108:554/Streaming/channels/101"
     output_dir: str = "data/deployment_output"
     log_dir: str = "logs"
     log_filename: Optional[str] = None
